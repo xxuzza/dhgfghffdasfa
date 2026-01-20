@@ -1,7 +1,17 @@
+# #!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 import logging
 import asyncio
 import secrets
 import json
+import sys
+
+# Исправление кодировки для Windows консоли
+try:
+    sys.stdout.reconfigure(encoding='utf-8')
+except:
+    pass
+
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, LabeledPrice
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes, MessageHandler, filters, PreCheckoutQueryHandler
 import config
@@ -9,7 +19,8 @@ import database
 from xui_api import XUIClient
 from crystalpay import CrystalPayAPI
 from datetime import datetime
-
+from subscription_check import check_user_subscription
+    
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
 logger = logging.getLogger(__name__)
 
@@ -27,6 +38,12 @@ if config.CRYSTALPAY_NAME and config.CRYSTALPAY_SECRET1 and config.CRYSTALPAY_SE
 user_states = {}
 call_admin_cooldown = {}  # Хранит время последнего вызова админа для каждого пользователя
 
+# ===== CHANNEL SUBSCRIPTION CHECK =====
+
+async def check_subscription(user_id, bot_instance):
+    """Проверка подписки на канал"""
+    return await check_user_subscription(user_id, bot_instance)
+
 # ===== MAIN MENU =====
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -34,10 +51,22 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     # Проверка бана
     if await database.is_banned(user.id):
-        await update.message.reply_text("❌ Вы заблокированы")
+        await update.message.reply_text("You are banned")
         return
     
     await database.add_user(user.id, user.username)
+    
+    # Check channel subscription
+    if not await check_subscription(user.id, context.bot):
+        text = "Для использования бота необходимо подписаться на канал!\n\n" + \
+               f"Канал: {config.REQUIRED_CHANNEL}\n\n" + \
+               "После подписки нажмите кнопку ниже для проверки."
+        keyboard = [
+            [InlineKeyboardButton("Подписаться", url=f'https://t.me/{config.REQUIRED_CHANNEL.replace("@", "")}')],
+            [InlineKeyboardButton("Я подписался", callback_data='check_sub')]
+        ]
+        await update.message.reply_text(text, reply_markup=InlineKeyboardMarkup(keyboard))
+        return
     
     if context.args and context.args[0].isdigit():
         referrer_id = int(context.args[0])
@@ -124,6 +153,14 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     data = query.data
     
     try:
+        # Check subscription
+        if data == 'check_sub':
+            if await check_subscription(query.from_user.id, context.bot):
+                await query.edit_message_text("Отлично! Подписка подтверждена.\n\nТеперь нажмите /start для продолжения.")
+            else:
+                await query.answer("Вы еще не подписались на канал!", show_alert=True)
+            return
+        
         # Policy agreement
         if data == 'agree_policy':
             await database.set_agreed_policy(query.from_user.id)
@@ -216,8 +253,17 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         elif data == 'call_admin':
             await call_admin(query, context)
     except Exception as e:
+        import traceback
+        full_error = traceback.format_exc()
         logger.error(f"Button error: {e}")
-        await query.edit_message_text(f"❌ Ошибка: {e}")
+        logger.error(f"Full traceback:\n{full_error}")
+        try:
+            await query.edit_message_text(f"❌ Ошибка: {e}")
+        except:
+            try:
+                await query.message.reply_text(f"❌ Ошибка: {e}")
+            except:
+                pass
 
 # ===== USER FUNCTIONS =====
 
@@ -598,7 +644,9 @@ async def show_referral(query):
     user_id = query.from_user.id
     stats = await database.get_referral_stats(user_id)
     user = await database.get_user(user_id)
-    bot = await query.get_bot().get_me()
+    
+    # Получаем username бота из токена (он уже известен)
+    bot_username = (await query.message.get_bot()).username
     
     ref_earned = user['ref_earned'] if user else 0
     
@@ -607,7 +655,7 @@ async def show_referral(query):
         f"💰 Статистика:\n"
         f"👤 Приглашено: {stats['count']}\n"
         f"💵 Заработано: {ref_earned}₽\n\n"
-        f"Ваша ссылка:\nhttps://t.me/{bot.username}?start={user_id}\n\n"
+        f"Ваша ссылка:\nhttps://t.me/{bot_username}?start={user_id}\n\n"
         f"🔥 Как это работает:\n"
         f"• Поделитесь ссылкой с друзьями\n"
         f"• Получайте 15% от их покупок\n"
@@ -702,7 +750,8 @@ async def show_admin_menu(query):
         [InlineKeyboardButton("🎟 Промокоды", callback_data='admin_promos')],
         [InlineKeyboardButton("👑 Админы", callback_data='admin_admins')],
         [InlineKeyboardButton("📊 Статистика", callback_data='admin_stats')],
-        [InlineKeyboardButton("🗑 Очистить истекшие", callback_data='admin_cleanup')]
+        [InlineKeyboardButton("🗑 Очистить истекшие", callback_data='admin_cleanup')],
+        [InlineKeyboardButton("⬅️ Вернуться в меню", callback_data='back_main')]
     ]
     
     await query.edit_message_text("🔧 Админ панель:", reply_markup=InlineKeyboardMarkup(keyboard))

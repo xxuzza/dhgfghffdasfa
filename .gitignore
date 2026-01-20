@@ -1,0 +1,44 @@
+# Секретные данные - НЕ ЗАГРУЖАТЬ В GIT!
+.env
+*.db
+*.db-journal
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+ENV/
+
+# Логи
+*.log
+
+# Временные файлы
+*.tmp
+*.bak
+*.swp
+*~
+
+# IDE
+.vscode/
+.idea/
+*.sublime-*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Тестовые скрипты
+test_*.py
+check_db.py
+cleanup_panel.py
+create_test_key.py
+
+# Документация (опционально, можешь убрать если хочешь загрузить)
+# CHANGELOG_CLEANUP.md
+# BOOSTY_PAYMENT.md
+# CONNECT_SERVER.md
+# DEPLOY_UBUNTU.md

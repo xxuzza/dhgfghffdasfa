@@ -32,11 +32,16 @@ CRYSTALPAY_SECRET2 = os.getenv('CRYSTALPAY_SECRET2')
 # Support
 SUPPORT_USERNAME = os.getenv('SUPPORT_USERNAME', 'your_support')
 
+# Required channel for subscription check
+REQUIRED_CHANNEL = os.getenv('REQUIRED_CHANNEL', '@your_channel')  # Например: @stewvpn_channel
+REQUIRED_CHANNEL_ID = os.getenv('REQUIRED_CHANNEL_ID', '')  # Например: -1001234567890
+
 # Subscription Plans
 PLANS = {
     '1_month': {'name': '1 месяц', 'days': 30, 'price': 100, 'traffic_gb': 200, 'stars': 100},
     '3_months': {'name': '3 месяца', 'days': 90, 'price': 400, 'traffic_gb': 600, 'stars': 200},
     '6_months': {'name': '6 месяцев', 'days': 180, 'price': 700, 'traffic_gb': 1200, 'stars': 400},
+    '12_months': {'name': '12 месяцев', 'days': 365, 'price': 1000, 'traffic_gb': 2400, 'stars': 600},
 }
 
 # Inbound IDs для разных протоколов
